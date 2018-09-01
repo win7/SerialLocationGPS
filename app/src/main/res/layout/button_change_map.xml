@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:weightSum="1">
+
+    <ImageButton
+        android:id="@+id/imageButton_change_map"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="right"
+        android:layout_marginRight="@dimen/dimen11dp"
+        android:layout_marginTop="@dimen/dimen60dp"
+        android:background="@drawable/border_button_map"
+        android:clickable="true"
+        android:src="@drawable/ic_layers"
+        android:tint="?attr/colorButtonNormal" />
+
+</LinearLayout>

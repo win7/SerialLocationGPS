@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Monitoring</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="permission_gps"> Se requiere permiso de GPS... </string>
+    <string name="enable_gps"> Se requiere activar el GPS...</string>
+</resources>
