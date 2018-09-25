@@ -11,7 +11,12 @@ import android.content.IntentSender;
 import android.content.ServiceConnection;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
+import android.media.MediaPlayer;
 import android.os.AsyncTask;
 import android.os.BatteryManager;
 import android.os.Bundle;
@@ -23,9 +28,11 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,6 +40,7 @@ import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -50,20 +58,30 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.lang.ref.WeakReference;
+import java.net.URISyntaxException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
@@ -104,7 +122,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public static String TAG = "XXX";
     RefreshMonitoring refresh_monitoring = null;
 
-    String ID = "1";
+    Socket socket;
+    public static String IP = "http://poveapanaderiasnack.com:1337";
+    public static String DEVICE_ID = "102";
+
     double latitude = 0;
     double longitude = 0;
     int velocity = 0;
@@ -165,6 +186,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
 
         PermissionsGPS();
+        InitSocketIO();
         mHandler = new MyHandler(this);
 
     }
@@ -234,6 +256,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mGoogleApiClient.disconnect();
             }
         }
+        socket.disconnect();
+        socket.off("connect_device", onConnectDevice);
+        socket.off("send_message", onSendMessage);
         flag_monitoring = false;
     }
 
@@ -351,6 +376,141 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney)); */
     }
 
+    /*********************************************/
+    /***************** CONFIG GPS ****************/
+    /*********************************************/
+    private void InitSocketIO(){
+        try {
+            IO.Options opts = new IO.Options();
+            opts.reconnection = true;
+            opts.transports = new String[] {"websocket"};
+            opts.query = "__sails_io_sdk_version=0.11.0&__sails_io_sdk_platform=android&__sails_io_sdk_language=java";
+            socket = IO.socket(IP, opts);
+
+            socket.on(Socket.EVENT_CONNECT, onConnect);
+            socket.on(Socket.EVENT_RECONNECT, onReConnect);
+            socket.on(Socket.EVENT_DISCONNECT, onDisconnect);
+            socket.on(Socket.EVENT_CONNECT_ERROR, onConnectError);
+            socket.on(Socket.EVENT_CONNECT_TIMEOUT, onConnectError);
+            socket.on("connect_device", onConnectDevice);
+            socket.on("send_message", onSendMessage);
+
+            socket.connect();
+        } catch (URISyntaxException e) {
+            Log.e(TAG, "Err");
+            e.printStackTrace();
+        }
+    }
+
+    private Emitter.Listener onConnect = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e("onconnect", "...");
+
+                    try {
+                        JSONObject data = new JSONObject();
+                        data.put("device_id", DEVICE_ID);
+
+                        JSONObject obj = new JSONObject();
+                        obj.put("url", "/connect_device");
+                        obj.put("method", "get");
+                        obj.put("data", data);
+                        if (socket != null && socket.connected()){
+                            socket.emit("get", obj);
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    };
+
+    private Emitter.Listener onReConnect = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e("onreconnect", "...");
+
+                    try {
+                        JSONObject data = new JSONObject();
+                        data.put("device_id", DEVICE_ID);
+
+                        JSONObject obj = new JSONObject();
+                        obj.put("url", "/connect_device");
+                        obj.put("method", "get");
+                        obj.put("data", data);
+                        if (socket != null && socket.connected()){
+                            socket.emit("get", obj);
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    };
+
+    private Emitter.Listener onDisconnect = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e("onDisconnect", "...");
+                }
+            });
+        }
+    };
+
+    private Emitter.Listener onConnectError = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e("onconnecterror", "...");
+                }
+            });
+        }
+    };
+
+    private Emitter.Listener onConnectDevice = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e(TAG, args[0] + "");
+                }
+            });
+        }
+    };
+
+    private Emitter.Listener onSendMessage = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e(TAG, args[0] + "");
+
+                    try {
+                        JSONObject json_object_r = (JSONObject) args[0];
+                        DialogMessage(json_object_r.getString("message"), 36, 7);
+                        PlayNotification(3, getApplicationContext());
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    };
     /*********************************************/
     /***************** CONFIG GPS ****************/
     /*********************************************/
@@ -472,17 +632,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                                     .target(lat_lng)            // Sets the center of the map to Mountain View
                                                     .zoom(15.5f)                // Sets the zoom
                                                     .bearing(0)                 // Sets the orientation of the camera to east
-                                                    .tilt(0)                    // Sets the tilt of the camera to 30 degrees
+                                                    .tilt(45)                   // Sets the tilt of the camera to 30 degrees
                                                     .build();
                                             g_map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
 
                                             marker = g_map.addMarker(new MarkerOptions()
                                                     .position(lat_lng)
-                                                    .title("ID: " + ID)
+                                                    .title("ID: " + DEVICE_ID)
                                                     .snippet("00:00:00 - 0 Km/hr")
                                                     //.anchor(0.5f, 0.5f)
                                                     .infoWindowAnchor(0.5f, 0.5f)
+                                                    .icon(BitmapDescriptorFromVector(getApplicationContext(), R.drawable.ic_navigation_24dp))
                                                     .zIndex(0.0f));
+
+                                            circle = g_map.addCircle(new CircleOptions()
+                                                    .center(lat_lng)
+                                                    .radius(500)
+                                                    .strokeWidth(2)
+                                                    .strokeColor(Color.argb(255, 255, 87, 51))
+                                                    .fillColor(Color.argb(16, 255, 87, 51)));
 
                                             flag_init = false;
                                         }
@@ -499,13 +667,42 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                                     runOnUiThread(new Runnable() {
                                         public void run() {
+                                            Log.e(TAG, mLastLocation.getBearing() + "");
                                             marker.setPosition(lat_lng);
                                             marker.setSnippet(time + " - " + velocity + "Km/hr");
-                                            g_map.animateCamera(CameraUpdateFactory.newLatLngZoom(lat_lng, g_map.getCameraPosition().zoom));
+                                            circle.setCenter(lat_lng);
+                                            //g_map.animateCamera(CameraUpdateFactory.newLatLngZoom(lat_lng, g_map.getCameraPosition().zoom));
+                                            cameraPosition = new CameraPosition.Builder()
+                                                    .target(lat_lng)                                // Sets the center of the map to Mountain View
+                                                    .zoom(g_map.getCameraPosition().zoom)           // Sets the zoom
+                                                    .bearing(mLastLocation.getBearing())            // Sets the orientation of the camera to east
+                                                    .tilt(45)                                       // Sets the tilt of the camera to 30 degrees
+                                                    .build();                                       // Creates a CameraPosition from the builder
+                                            g_map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
                                         }
                                     });
 
-                                    String data = ID + ";" + latitude + ";" + longitude + ";" + velocity + ";" + time + ";" + navigation;
+                                    try {
+                                        JSONObject data = new JSONObject();
+                                        data.put("device_id", DEVICE_ID);
+                                        data.put("latitude", latitude);
+                                        data.put("longitude", longitude);
+                                        data.put("velocity", velocity);
+                                        data.put("navigation", navigation);
+                                        data.put("time", time);
+
+                                        JSONObject obj = new JSONObject();
+                                        obj.put("url", "/create_monitoring");
+                                        obj.put("method", "get");
+                                        obj.put("data", data);
+                                        if (socket != null && socket.connected()){
+                                            socket.emit("get", obj);
+                                        }
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+
+                                    String data = DEVICE_ID + ";" + latitude + ";" + longitude + ";" + velocity + ";" + time + ";" + navigation;
                                     if (usbService != null) { // if UsbService was correctly binded, Send data
                                         usbService.write(data.getBytes());
                                     }else {
@@ -683,6 +880,45 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .setAction(getString(actionStringId), listener).show();
     }
 
+    private void PlayNotification(int option, Context context){
+        MediaPlayer player = MediaPlayer.create(context, R.raw.beep01);
+        switch (option){
+            case 1:
+                player = MediaPlayer.create(context, R.raw.beep01);
+                break;
+            case 2:
+                player = MediaPlayer.create(context, R.raw.beep02);
+                break;
+            case 3:
+                player = MediaPlayer.create(context, R.raw.beep03);
+                break;
+        }
+        player.start();
+    }
+
+    private void DialogMessage(String message, float size_text, final int lapse) {
+        final android.app.AlertDialog alert_dialog;
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View v = inflater.inflate(R.layout.alert_dialog, null);
+        TextView tw_message = v.findViewById(R.id.textView_message);
+        tw_message.setTextSize(size_text);
+        tw_message.setText(message);
+        builder.setView(v);
+        alert_dialog = builder.create();
+        alert_dialog.show();
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    Thread.sleep(lapse * 1000);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                alert_dialog.dismiss();
+            }
+        }).start();
+    }
+
     private void hideSystemUI() {
         // Enables regular immersive mode.
         // For "lean back" mode, remove SYSTEM_UI_FLAG_IMMERSIVE.
@@ -708,5 +944,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+    }
+
+    private BitmapDescriptor BitmapDescriptorFromVector(Context context, int vectorResId) {
+        Drawable vectorDrawable = ContextCompat.getDrawable(context, vectorResId);
+        // vectorDrawable.setTint(Color.parseColor("#1f1a17"));
+        vectorDrawable.setBounds(0, 0, vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight());
+        Bitmap bitmap = Bitmap.createBitmap(vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        vectorDrawable.draw(canvas);
+        return BitmapDescriptorFactory.fromBitmap(bitmap);
     }
 }

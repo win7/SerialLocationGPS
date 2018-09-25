@@ -30,4 +30,9 @@ dependencies {
     implementation 'com.google.android.gms:play-services-maps:11.0.4'
     implementation 'com.google.android.gms:play-services-location:11.0.4'
     implementation 'com.github.felHR85:UsbSerial:4.5.2'
+
+    implementation ('io.socket:socket.io-client:1.0.0') {
+        // excluding org.json which is provided by Android
+        exclude group: 'org.json', module: 'json'
+    }
 }
