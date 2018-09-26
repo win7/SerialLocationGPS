@@ -123,8 +123,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     RefreshMonitoring refresh_monitoring = null;
 
     Socket socket;
-    public static String IP = "http://poveapanaderiasnack.com:1337";
-    public static String DEVICE_ID = "102";
+    public static String IP = "http://127.0.0.1:1337";
+    public static String DEVICE_ID = "100";
 
     double latitude = 0;
     double longitude = 0;
@@ -834,7 +834,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     String buffer = (String) msg.obj;
                     String data_gps [] = buffer.split(";");
                     // Toast.makeText(mActivity.get(), "Length: " + data_gps.length, Toast.LENGTH_LONG).show();
-                    if(data_gps.length == 6){
+                    if(data_gps.length == 8){
                         if(data_gps[0].length() == 1){
                             int m_voltage = batteryStatus.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
                             date = new Date(mLastLocation.getTime());
